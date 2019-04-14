@@ -132,6 +132,7 @@ class ReLUModule(object):
     # PUT YOUR CODE HERE  #
     #######################
     positives_x = self.x > 0
+    # print(positives_x.shape)
     dx = np.multiply(positives_x, dout)
     ########################
     # END OF YOUR CODE    #
@@ -243,7 +244,9 @@ class CrossEntropyModule(object):
     ########################
     # PUT YOUR CODE HERE  #
     #######################
-    out = -np.log(np.sum(x*y, axis=1))
+    small_value = 1e-8
+
+    out = -np.log(np.sum((x + small_value)*y, axis=1))
     ########################
     # END OF YOUR CODE    #
     #######################
@@ -270,7 +273,13 @@ class CrossEntropyModule(object):
     # print(y.shape)
     # print(np.divide(-1, x).shape)
     # print(sadasd)
-    dx = (np.divide(-1, x) * y)/y.shape[0]
+    # print(x)
+
+    # Thanks to Victor for this helpful tip
+    small_value = 1e-8
+
+    dxx = (np.divide(-1, x + small_value) * y)
+    dx = dxx/y.shape[0]
     # print(dx.shape)
     # print(dx)
     # print(asda)

@@ -36,24 +36,25 @@ class MLP(object):
     ########################
     # PUT YOUR CODE HERE  #
     #######################
-    n_hidden.append(n_classes)
+
     self.n_inputs = n_inputs
     self.n_hidden = n_hidden
     self.n_classes = n_classes
 
+    n_total = n_hidden + [n_classes]
 
-    if (len(n_hidden) > 0):
-        self.layers = [LinearModule(n_inputs, n_hidden[0]), ReLUModule()]
+    if (len(n_total) > 0):
+        self.layers = [LinearModule(n_inputs, n_total[0]), ReLUModule()]
 
-        for i in range(len(n_hidden)-1):
-            self.layers.append(LinearModule(n_hidden[i], n_hidden[i+1]))
-            if (i < (len(n_hidden)-2)):
+        for i in range(len(n_total)-1):
+            self.layers.append(LinearModule(n_total[i], n_total[i+1]))
+            if (i < (len(n_total)-2)):
                 self.layers.append(ReLUModule())
     else:
-        self.layers = [LinearModule(n_inputs, n_hidden[0])]
+        self.layers = [LinearModule(n_inputs, n_total[0])]
     self.layers.append(SoftMaxModule())
 
-    print(self.layers)
+    # print(self.layers)
     # print(asdad)
     ########################
     # END OF YOUR CODE    #

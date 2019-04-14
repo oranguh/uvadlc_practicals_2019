@@ -13,6 +13,7 @@ from mlp_numpy import MLP
 from modules import CrossEntropyModule, LinearModule
 import cifar10_utils
 import matplotlib.pyplot as plt
+import csv
 
 # Default constants
 DNN_HIDDEN_UNITS_DEFAULT = '100'
@@ -78,68 +79,91 @@ def train():
   ########################
   # PUT YOUR CODE HERE  #
   #######################
-  cifar10 = cifar10_utils.get_cifar10()
 
-  x, y = cifar10['train'].next_batch(BATCH_SIZE_DEFAULT)
-  x = np.reshape(x, (BATCH_SIZE_DEFAULT, -1))
-  network = MLP(x.shape[-1], dnn_hidden_units, y.shape[-1])
-  criterion = CrossEntropyModule()
-  plotting_accuracy = []
-  plotting_loss = []
-
-  plotting_accuracy_test = []
-  plotting_loss_test = []
-
-  for i in range(1, MAX_STEPS_DEFAULT+1):
-    # print("Batch number: {}".format(i))
-
-    x, y = cifar10['train'].next_batch(BATCH_SIZE_DEFAULT)
-    x = np.reshape(x, (BATCH_SIZE_DEFAULT, -1))
+  grid_search = []
 
 
-    output = network.forward(x)
+  for dnn_hidden_units in [[100], [200], [100, 100]]:
+      for LEARNING_RATE_DEFAULT in [2e-3, 1e-2, 2e-2]:
 
-    # loss = criterion.forward(output, y)
-    # print("Average loss: {} over {} samples".format(np.mean(loss), loss.size))
-    # acc = accuracy(output, y)
-    dx = criterion.backward(output, y)
-    network.backward(dx)
+          cifar10 = cifar10_utils.get_cifar10()
 
-    for module in network.layers:
-        if isinstance(module, LinearModule):
-            # print(module.params)
-            # print(asda)
-            module.params['weight'] -= (module.grads['weight']) * LEARNING_RATE_DEFAULT
-            module.params['bias'] -= (module.grads['bias']) * LEARNING_RATE_DEFAULT
+          # x, y = cifar10['train'].next_batch(BATCH_SIZE_DEFAULT)
+          # x = np.reshape(x, (BATCH_SIZE_DEFAULT, -1))
+          # network = MLP(x.shape[-1], dnn_hidden_units, y.shape[-1])
+          network = MLP(3072, dnn_hidden_units, 10)
 
-    if (i % EVAL_FREQ_DEFAULT == 0):
-    # if (True):
-        loss_train = criterion.forward(output, y)
-        # print("Batch: {}; Average loss: {} over {} samples".format(i, np.mean(loss_train), loss_train.size))
-        acc_train = accuracy(output, y)
-        # print("Train accuracy is: {}%".format(acc_train))
 
-        x_test, y_test = cifar10['test'].next_batch(5000)
-        x_test = np.reshape(x_test, (5000, -1))
-        output_test = network.forward(x_test)
+          criterion = CrossEntropyModule()
+          plotting_accuracy = []
+          plotting_loss = []
 
-        loss_test = criterion.forward(output_test, y_test)
-        # print("Average test loss: {}".format(np.mean(loss_test)))
-        acc_test = accuracy(output_test, y_test)
-        # print("Test accuracy is: {}%".format(acc_test))
+          plotting_accuracy_test = []
+          plotting_loss_test = []
 
-        plotting_accuracy_test.append(acc_test)
-        plotting_loss_test.append(loss_test)
+          for i in range(MAX_STEPS_DEFAULT):
+            # print("Batch number: {}".format(i))
 
-        plotting_accuracy.append(acc_train)
-        plotting_loss.append(loss_train)
+            x, y = cifar10['train'].next_batch(BATCH_SIZE_DEFAULT)
+            x = np.reshape(x, (BATCH_SIZE_DEFAULT, -1))
 
-  plt.plot(plotting_accuracy, label='train accuracy')
-  plt.plot(plotting_accuracy_test, label='test accuracy')
+
+            output = network.forward(x)
+
+            # loss = criterion.forward(output, y)
+            # print("Average loss: {} over {} samples".format(np.mean(loss), loss.size))
+            # acc = accuracy(output, y)
+            dx = criterion.backward(output, y)
+            network.backward(dx)
+
+            for module in network.layers:
+                if isinstance(module, LinearModule):
+                    # print(module.params)
+                    # print(asda)
+                    module.params['weight'] -= (module.grads['weight']) * LEARNING_RATE_DEFAULT
+                    module.params['bias'] -= (module.grads['bias']) * LEARNING_RATE_DEFAULT
+
+            # if (i % EVAL_FREQ_DEFAULT == 0):
+            if (i == MAX_STEPS_DEFAULT-1):
+                loss_train = criterion.forward(output, y)
+                # print("Batch: {}; Average loss: {} over {} samples".format(i, np.mean(loss_train), loss_train.size))
+                acc_train = accuracy(output, y)
+                # print("Train accuracy is: {}%".format(acc_train))
+
+                x_test, y_test = cifar10['test'].next_batch(1000)
+                x_test = np.reshape(x_test, (1000, -1))
+                output_test = network.forward(x_test)
+
+                loss_test = criterion.forward(output_test, y_test)
+                # print("Average test loss: {}".format(np.mean(loss_test)))
+                acc_test = accuracy(output_test, y_test)
+                # print("Test accuracy is: {}%".format(acc_test))
+
+                plotting_accuracy_test.append(acc_test)
+                plotting_loss_test.append(loss_test)
+
+                plotting_accuracy.append(acc_train)
+                plotting_loss.append(loss_train)
+
+                grid_search.append({'Learning Rate': LEARNING_RATE_DEFAULT,
+                                    'Hidden Units': dnn_hidden_units,
+                                    'Train Accuracy': acc_train,
+                                    'Train Loss': np.mean(loss_train),
+                                    'Test Accuracy': acc_test,
+                                    'Test Loss': np.mean(loss_test)})
+                print(grid_search[-1])
+
+  keys = grid_search[0].keys()
+  with open('grid_search.csv', 'w') as output_file:
+    dict_writer = csv.DictWriter(output_file, keys)
+    dict_writer.writeheader()
+    dict_writer.writerows(grid_search)
+  # plt.plot(plotting_accuracy, label='train accuracy')
+  # plt.plot(plotting_accuracy_test, label='test accuracy')
   # plt.plot(plotting_loss, label='train loss')
   # plt.plot(plotting_loss_test, label='test loss')
-  plt.legend()
-  plt.show()
+  # plt.legend()
+  # plt.show()
 
 
   ########################
