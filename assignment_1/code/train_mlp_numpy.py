@@ -10,8 +10,9 @@ import argparse
 import numpy as np
 import os
 from mlp_numpy import MLP
-from modules import CrossEntropyModule
+from modules import CrossEntropyModule, LinearModule
 import cifar10_utils
+import matplotlib.pyplot as plt
 
 # Default constants
 DNN_HIDDEN_UNITS_DEFAULT = '100'
@@ -29,7 +30,7 @@ def accuracy(predictions, targets):
   """
   Computes the prediction accuracy, i.e. the average of correct predictions
   of the network.
-  
+
   Args:
     predictions: 2D float array of size [batch_size, n_classes]
     labels: 2D int array of size [batch_size, n_classes]
@@ -38,7 +39,7 @@ def accuracy(predictions, targets):
   Returns:
     accuracy: scalar float, the accuracy of predictions,
               i.e. the average correct predictions over the whole batch
-  
+
   TODO:
   Implement accuracy computation.
   """
@@ -46,7 +47,8 @@ def accuracy(predictions, targets):
   ########################
   # PUT YOUR CODE HERE  #
   #######################
-  raise NotImplementedError
+  compare = (np.argmax(predictions, axis=1) == np.argmax(targets, axis=1))
+  accuracy = np.sum(compare)/compare.size
   ########################
   # END OF YOUR CODE    #
   #######################
@@ -55,7 +57,7 @@ def accuracy(predictions, targets):
 
 def train():
   """
-  Performs training and evaluation of MLP model. 
+  Performs training and evaluation of MLP model.
 
   TODO:
   Implement training and evaluation of MLP model. Evaluate your model on the whole test set each eval_freq iterations.
@@ -76,7 +78,70 @@ def train():
   ########################
   # PUT YOUR CODE HERE  #
   #######################
-  raise NotImplementedError
+  cifar10 = cifar10_utils.get_cifar10()
+
+  x, y = cifar10['train'].next_batch(BATCH_SIZE_DEFAULT)
+  x = np.reshape(x, (BATCH_SIZE_DEFAULT, -1))
+  network = MLP(x.shape[-1], dnn_hidden_units, y.shape[-1])
+  criterion = CrossEntropyModule()
+  plotting_accuracy = []
+  plotting_loss = []
+
+  plotting_accuracy_test = []
+  plotting_loss_test = []
+
+  for i in range(1, MAX_STEPS_DEFAULT+1):
+    # print("Batch number: {}".format(i))
+
+    x, y = cifar10['train'].next_batch(BATCH_SIZE_DEFAULT)
+    x = np.reshape(x, (BATCH_SIZE_DEFAULT, -1))
+
+
+    output = network.forward(x)
+
+    # loss = criterion.forward(output, y)
+    # print("Average loss: {} over {} samples".format(np.mean(loss), loss.size))
+    # acc = accuracy(output, y)
+    dx = criterion.backward(output, y)
+    network.backward(dx)
+
+    for module in network.layers:
+        if isinstance(module, LinearModule):
+            # print(module.params)
+            # print(asda)
+            module.params['weight'] -= (module.grads['weight']) * LEARNING_RATE_DEFAULT
+            module.params['bias'] -= (module.grads['bias']) * LEARNING_RATE_DEFAULT
+
+    if (i % EVAL_FREQ_DEFAULT == 0):
+    # if (True):
+        loss_train = criterion.forward(output, y)
+        # print("Batch: {}; Average loss: {} over {} samples".format(i, np.mean(loss_train), loss_train.size))
+        acc_train = accuracy(output, y)
+        # print("Train accuracy is: {}%".format(acc_train))
+
+        x_test, y_test = cifar10['test'].next_batch(5000)
+        x_test = np.reshape(x_test, (5000, -1))
+        output_test = network.forward(x_test)
+
+        loss_test = criterion.forward(output_test, y_test)
+        # print("Average test loss: {}".format(np.mean(loss_test)))
+        acc_test = accuracy(output_test, y_test)
+        # print("Test accuracy is: {}%".format(acc_test))
+
+        plotting_accuracy_test.append(acc_test)
+        plotting_loss_test.append(loss_test)
+
+        plotting_accuracy.append(acc_train)
+        plotting_loss.append(loss_train)
+
+  plt.plot(plotting_accuracy, label='train accuracy')
+  plt.plot(plotting_accuracy_test, label='test accuracy')
+  # plt.plot(plotting_loss, label='train loss')
+  # plt.plot(plotting_loss_test, label='test loss')
+  plt.legend()
+  plt.show()
+
+
   ########################
   # END OF YOUR CODE    #
   #######################
