@@ -12,6 +12,11 @@ import os
 from mlp_pytorch import MLP
 import cifar10_utils
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+
 # Default constants
 DNN_HIDDEN_UNITS_DEFAULT = '100'
 LEARNING_RATE_DEFAULT = 2e-3
@@ -28,7 +33,7 @@ def accuracy(predictions, targets):
   """
   Computes the prediction accuracy, i.e. the average of correct predictions
   of the network.
-  
+
   Args:
     predictions: 2D float array of size [batch_size, n_classes]
     labels: 2D int array of size [batch_size, n_classes]
@@ -37,7 +42,7 @@ def accuracy(predictions, targets):
   Returns:
     accuracy: scalar float, the accuracy of predictions,
               i.e. the average correct predictions over the whole batch
-  
+
   TODO:
   Implement accuracy computation.
   """
@@ -45,7 +50,10 @@ def accuracy(predictions, targets):
   ########################
   # PUT YOUR CODE HERE  #
   #######################
-  raise NotImplementedError
+  compare = (predictions.argmax(dim=1)) == (targets.argmax(dim=1))
+  summed = compare.sum().item()
+  # print(compare.size()[0])
+  accuracy = summed/compare.size()[0]
   ########################
   # END OF YOUR CODE    #
   #######################
@@ -54,7 +62,7 @@ def accuracy(predictions, targets):
 
 def train():
   """
-  Performs training and evaluation of MLP model. 
+  Performs training and evaluation of MLP model.
 
   TODO:
   Implement training and evaluation of MLP model. Evaluate your model on the whole test set each eval_freq iterations.
@@ -75,7 +83,45 @@ def train():
   ########################
   # PUT YOUR CODE HERE  #
   #######################
-  raise NotImplementedError
+  cifar10 = cifar10_utils.get_cifar10()
+
+  if torch.cuda.is_available():
+      # print(torch.device('cpu'), torch.device("cuda"))
+      device = torch.device("cuda")
+  else:
+      device = torch.device("cpu")
+
+  network = MLP(3072, dnn_hidden_units, 10)
+  network.to(device)
+  criterion = nn.CrossEntropyLoss()
+  optimizer = optim.Adam(network.parameters(), lr=LEARNING_RATE_DEFAULT)
+
+  for i in range(1, MAX_STEPS_DEFAULT-1):
+
+      x, y = cifar10['train'].next_batch(BATCH_SIZE_DEFAULT)
+      x = torch.from_numpy(x)
+      y = torch.from_numpy(y)
+      x = x.to(device)
+      y = y.to(device)
+      # print(x.shape)
+      x = x.view(BATCH_SIZE_DEFAULT, -1)
+      # print(x.shape)
+
+      out = network.forward(x)
+      loss = criterion(out, y.argmax(dim=1))
+      print("Batch: {} Loss {}".format(i, loss))
+      acc = accuracy(out, y)
+      print("Accuracy: {}".format(acc))
+
+      optimizer.zero_grad()
+      loss.backward()
+      optimizer.step()
+
+      # learning_rate = 0.01
+      # for f in network.parameters():
+      #     f.data.sub_(f.grad.data * learning_rate)
+
+
   ########################
   # END OF YOUR CODE    #
   #######################

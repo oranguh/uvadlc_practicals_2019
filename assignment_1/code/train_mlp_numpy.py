@@ -130,8 +130,8 @@ def train():
                 acc_train = accuracy(output, y)
                 # print("Train accuracy is: {}%".format(acc_train))
 
-                x_test, y_test = cifar10['test'].next_batch(1000)
-                x_test = np.reshape(x_test, (1000, -1))
+                x_test, y_test = cifar10['test'].next_batch(10000)
+                x_test = np.reshape(x_test, (10000, -1))
                 output_test = network.forward(x_test)
 
                 loss_test = criterion.forward(output_test, y_test)
