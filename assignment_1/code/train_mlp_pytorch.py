@@ -18,9 +18,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 # Default constants
-DNN_HIDDEN_UNITS_DEFAULT = '100'
-LEARNING_RATE_DEFAULT = 2e-3
-MAX_STEPS_DEFAULT = 1500
+DNN_HIDDEN_UNITS_DEFAULT = '100, 100, 100, 100'
+LEARNING_RATE_DEFAULT = 2e-2
+MAX_STEPS_DEFAULT = 15000
 BATCH_SIZE_DEFAULT = 200
 EVAL_FREQ_DEFAULT = 100
 
@@ -103,15 +103,15 @@ def train():
       y = torch.from_numpy(y)
       x = x.to(device)
       y = y.to(device)
-      # print(x.shape)
+
       x = x.view(BATCH_SIZE_DEFAULT, -1)
-      # print(x.shape)
+
 
       out = network.forward(x)
       loss = criterion(out, y.argmax(dim=1))
-      print("Batch: {} Loss {}".format(i, loss))
-      acc = accuracy(out, y)
-      print("Accuracy: {}".format(acc))
+      # print("Batch: {} Loss {}".format(i, loss))
+      # acc = accuracy(out, y)
+      # print("Accuracy: {}".format(acc))
 
       optimizer.zero_grad()
       loss.backward()
@@ -121,6 +121,18 @@ def train():
       # for f in network.parameters():
       #     f.data.sub_(f.grad.data * learning_rate)
 
+      if (i % EVAL_FREQ_DEFAULT == 0):
+          x, y = cifar10['test'].next_batch(5000)
+          x = torch.from_numpy(x)
+          y = torch.from_numpy(y)
+          x = x.to(device)
+          y = y.to(device)
+          x = x.view(5000, -1)
+          out = network.forward(x)
+          loss = criterion(out, y.argmax(dim=1))
+          print("TEST Batch: {} Loss {}".format(i, loss))
+          acc = accuracy(out, y)
+          print("TEST Accuracy: {}".format(acc))
 
   ########################
   # END OF YOUR CODE    #

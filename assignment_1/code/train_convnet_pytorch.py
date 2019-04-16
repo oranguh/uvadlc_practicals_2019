@@ -12,6 +12,12 @@ import os
 from convnet_pytorch import ConvNet
 import cifar10_utils
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import matplotlib.pyplot as plt
+
 # Default constants
 LEARNING_RATE_DEFAULT = 1e-4
 BATCH_SIZE_DEFAULT = 32
@@ -28,16 +34,16 @@ def accuracy(predictions, targets):
   """
   Computes the prediction accuracy, i.e. the average of correct predictions
   of the network.
-  
+
   Args:
-    predictions: 2D float array of size [batch_size, n_classes]
-    labels: 2D int array of size [batch_size, n_classes]
-            with one-hot encoding. Ground truth labels for
-            each sample in the batch
+	predictions: 2D float array of size [batch_size, n_classes]
+	labels: 2D int array of size [batch_size, n_classes]
+			with one-hot encoding. Ground truth labels for
+			each sample in the batch
   Returns:
-    accuracy: scalar float, the accuracy of predictions,
-              i.e. the average correct predictions over the whole batch
-  
+	accuracy: scalar float, the accuracy of predictions,
+			  i.e. the average correct predictions over the whole batch
+
   TODO:
   Implement accuracy computation.
   """
@@ -45,7 +51,10 @@ def accuracy(predictions, targets):
   ########################
   # PUT YOUR CODE HERE  #
   #######################
-  raise NotImplementedError
+  compare = (predictions.argmax(dim=1)) == (targets.argmax(dim=1))
+  summed = compare.sum().item()
+  # print(compare.size()[0])
+  accuracy = summed/compare.size()[0]
   ########################
   # END OF YOUR CODE    #
   #######################
@@ -54,7 +63,7 @@ def accuracy(predictions, targets):
 
 def train():
   """
-  Performs training and evaluation of ConvNet model. 
+  Performs training and evaluation of ConvNet model.
 
   TODO:
   Implement training and evaluation of ConvNet model. Evaluate your model on the whole test set each eval_freq iterations.
@@ -67,7 +76,64 @@ def train():
   ########################
   # PUT YOUR CODE HERE  #
   #######################
-  raise NotImplementedError
+  cifar10 = cifar10_utils.get_cifar10()
+
+  if torch.cuda.is_available():
+	  # print(torch.device('cpu'), torch.device("cuda"))
+	  device = torch.device("cuda")
+  else:
+	  device = torch.device("cpu")
+
+  network = ConvNet(3, 10)
+  network.to(device)
+  criterion = nn.CrossEntropyLoss()
+  optimizer = optim.Adam(network.parameters(), lr=LEARNING_RATE_DEFAULT)
+
+  plotting_accuracy = []
+  plotting_loss = []
+  plotting_accuracy_test = []
+  plotting_loss_test = []
+
+  for i in range(1, MAX_STEPS_DEFAULT-1):
+	  x, y = cifar10['train'].next_batch(BATCH_SIZE_DEFAULT)
+	  x = torch.from_numpy(x)
+	  y = torch.from_numpy(y)
+	  x = x.to(device)
+	  y = y.to(device)
+
+	  out = network.forward(x)
+	  loss = criterion(out, y.argmax(dim=1))
+	  # print("Batch: {} Loss {}".format(i, loss))
+	  acc = accuracy(out, y)
+	  # print("Accuracy: {}".format(acc))
+
+	  optimizer.zero_grad()
+	  loss.backward()
+	  optimizer.step()
+
+	  if (i % EVAL_FREQ_DEFAULT == 0):
+		  x, y = cifar10['test'].next_batch(32)
+		  x = torch.from_numpy(x)
+		  y = torch.from_numpy(y)
+		  x = x.to(device)
+		  y = y.to(device)
+		  out = network.forward(x)
+		  loss_test = criterion(out, y.argmax(dim=1))
+		  print("TEST Batch: {} Loss {}".format(i, loss))
+		  acc_test = accuracy(out, y)
+		  print("TEST Accuracy: {}".format(acc))
+		  plotting_accuracy_test.append(acc_test)
+		  plotting_loss_test.append(loss_test)
+		  plotting_accuracy.append(acc)
+		  plotting_loss.append(loss)
+
+  plt.plot(plotting_accuracy, label='train accuracy')
+  plt.plot(plotting_accuracy_test, label='test accuracy')
+  # plt.plot(plotting_loss, label='train loss')
+  # plt.plot(plotting_loss_test, label='test loss')
+  plt.legend()
+  plt.show()
+
   ########################
   # END OF YOUR CODE    #
   #######################
@@ -77,7 +143,7 @@ def print_flags():
   Prints all entries in FLAGS variable.
   """
   for key, value in vars(FLAGS).items():
-    print(key + ' : ' + str(value))
+	  print(key + ' : ' + str(value))
 
 def main():
   """
@@ -87,7 +153,7 @@ def main():
   print_flags()
 
   if not os.path.exists(FLAGS.data_dir):
-    os.makedirs(FLAGS.data_dir)
+	  os.makedirs(FLAGS.data_dir)
 
   # Run the training operation
   train()
@@ -96,15 +162,15 @@ if __name__ == '__main__':
   # Command line arguments
   parser = argparse.ArgumentParser()
   parser.add_argument('--learning_rate', type = float, default = LEARNING_RATE_DEFAULT,
-                      help='Learning rate')
+					  help='Learning rate')
   parser.add_argument('--max_steps', type = int, default = MAX_STEPS_DEFAULT,
-                      help='Number of steps to run trainer.')
+					  help='Number of steps to run trainer.')
   parser.add_argument('--batch_size', type = int, default = BATCH_SIZE_DEFAULT,
-                      help='Batch size to run trainer.')
+					  help='Batch size to run trainer.')
   parser.add_argument('--eval_freq', type=int, default=EVAL_FREQ_DEFAULT,
-                        help='Frequency of evaluation on the test set')
+						help='Frequency of evaluation on the test set')
   parser.add_argument('--data_dir', type = str, default = DATA_DIR_DEFAULT,
-                      help='Directory for storing input data')
+					  help='Directory for storing input data')
   FLAGS, unparsed = parser.parse_known_args()
 
   main()
