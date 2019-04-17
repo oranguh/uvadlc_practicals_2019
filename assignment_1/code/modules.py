@@ -201,12 +201,24 @@ class SoftMaxModule(object):
     # print(expanded.shape)
     # expanded = np.expand_dims(exp_normalize(self.x.T), axis=1)
     # print(expanded.shape)
-    diagonals = np.empty((expanded.shape[0], expanded.shape[1],expanded.shape[1]))
+    # using np.empty makes things totally broken
+    diagonals = np.zeros((expanded.shape[0], expanded.shape[1], expanded.shape[1]))
 
     # print(expanded[0])
-    for i, batch in enumerate(expanded):
-        # print(batch.size)
-        diagonals[i,:,:] = np.diag(batch)
+
+    # Everything has to be vectorized. Somehow this works as well as my ugly for loop
+    # print(expanded.shape, np.arange(expanded.shape[1]))
+
+    diagonals[:, np.arange(expanded.shape[1]), np.arange(expanded.shape[1])] = expanded
+    # print(diagonals[0,:,:])
+    # print(asdasd)
+    # print(expanded.shape, diagonals.shape)
+
+    # for i, batch in enumerate(expanded):
+    #     # print(batch.size)
+    #     diagonals[i,:,:] = np.diag(batch)
+    # print(diagonals[0,:,:])
+
     # print(diagonals[0,:,:])
     # print(asdads)
     # print(dout.shape, self.x.shape, diagonals.shape, exp_normalize(self.x).shape)
@@ -247,6 +259,10 @@ class CrossEntropyModule(object):
     small_value = 1e-8
 
     out = -np.log(np.sum((x + small_value)*y, axis=1))
+
+    # I spent hours trying to figure out why the unit test was giving me problems.
+    # it was never specified that the loss had to be a scalar.
+    out = out.sum()/y.shape[0]
     ########################
     # END OF YOUR CODE    #
     #######################

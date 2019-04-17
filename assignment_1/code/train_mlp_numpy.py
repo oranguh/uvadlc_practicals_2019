@@ -79,10 +79,7 @@ def train():
   ########################
   # PUT YOUR CODE HERE  #
   #######################
-  # print(FLAGS.batch_size)
-  # print(FLAGS.eval_freq)
-  # print(FLAGS.learning_rate)
-  # print(FLAGS.max_steps)
+
 
   cifar10 = cifar10_utils.get_cifar10()
 
@@ -124,16 +121,16 @@ def train():
     # if (i % EVAL_FREQ_DEFAULT == 0):
     if (i == FLAGS.max_steps-1):
         loss_train = criterion.forward(output, y)
-        # print("Batch: {}; Average loss: {} over {} samples".format(i, np.mean(loss_train), loss_train.size))
+        # print("Batch: {}; Average loss: {}".format(i, loss_train))
         acc_train = accuracy(output, y)
         # print("Train accuracy is: {}%".format(acc_train))
 
-        x_test, y_test = cifar10['test'].next_batch(5000)
-        x_test = np.reshape(x_test, (5000, -1))
+        x_test, y_test = cifar10['test'].next_batch(10000)
+        x_test = np.reshape(x_test, (10000, -1))
         output_test = network.forward(x_test)
 
         loss_test = criterion.forward(output_test, y_test)
-        print("Average test loss: {}".format(np.mean(loss_test)))
+        print("Average test loss: {}".format(loss_test))
         acc_test = accuracy(output_test, y_test)
         print("Test accuracy is: {}%".format(acc_test))
 

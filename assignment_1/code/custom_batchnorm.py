@@ -34,10 +34,13 @@ class CustomBatchNormAutograd(nn.Module):
     """
     super(CustomBatchNormAutograd, self).__init__()
 
+    self.gamma = nn.Parameter(torch.FloatTensor(torch.ones(n_neurons)), requires_grad=True)
+    self.beta = nn.Parameter(torch.FloatTensor(torch.zeros(n_neurons)), requires_grad=True)
+    self.n_neurons = n_neurons
+    self.eps = eps
     ########################
     # PUT YOUR CODE HERE  #
     #######################
-    raise NotImplementedError
     ########################
     # END OF YOUR CODE    #
     #######################
@@ -60,12 +63,23 @@ class CustomBatchNormAutograd(nn.Module):
     ########################
     # PUT YOUR CODE HERE  #
     #######################
-    raise NotImplementedError
+
+    # if not (input.size()[1] == self.n_neurons):
+    assert (input.size()[1] == self.n_neurons), "wrong sizes? input: {} output: {}".format(input.size(1), self.n_neurons)
+        # print("wrong sizes? input: {} output: {}".format(input.size(1), self.n_neurons))
+
+    # print("wrong sizes? input: {} output: {}".format(input.size(1), self.n_neurons))
+    mean = input.mean(dim=0)
+    variance = input.var(dim=0, unbiased=False)
+    # print(mean, variance)
+    x_norm = (input - mean) / (variance + self.eps)**0.5
+    shifted = x_norm *self.gamma + self.beta
+
     ########################
     # END OF YOUR CODE    #
     #######################
 
-    return out
+    return shifted
 
 
 
@@ -96,8 +110,8 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
       ctx: context object handling storing and retrival of tensors and constants and specifying
            whether tensors need gradients in backward pass
       input: input tensor of shape (n_batch, n_neurons)
-      gamma: variance scaling tensor, applied per neuron, shpae (n_neurons)
-      beta: mean bias tensor, applied per neuron, shpae (n_neurons)
+      gamma: variance scaling tensor, applied per neuron, shape (n_neurons)
+      beta: mean bias tensor, applied per neuron, shape (n_neurons)
       eps: small float added to the variance for stability
     Returns:
       out: batch-normalized tensor
@@ -114,7 +128,15 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
     ########################
     # PUT YOUR CODE HERE  #
     #######################
-    raise NotImplementedError
+    ctx.eps = eps
+
+    mean = input.mean(dim=0)
+    variance = input.var(dim=0, unbiased=False)
+    x_norm = (input - mean) / (variance + eps)**0.5
+    out = x_norm * gamma + beta
+
+    ctx.save_for_backward(input, x_norm, gamma, mean, variance)
+
     ########################
     # END OF YOUR CODE    #
     #######################
@@ -142,10 +164,35 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
     ########################
     # PUT YOUR CODE HERE  #
     #######################
-    raise NotImplementedError
-    ########################
-    # END OF YOUR CODE    #
-    #######################
+    eps = ctx.eps
+    # print(ctx)
+    # print(ctx.saved_tensors[0].shape)
+    # print(asdasd)
+    # ctx.save_for_backward(input, x_norm, gamma, mean, variance)
+
+    input = ctx.saved_tensors[0]
+    x_norm = ctx.saved_tensors[1]
+    gamma = ctx.saved_tensors[2]
+    mean = ctx.saved_tensors[3]
+    variance = ctx.saved_tensors[4]
+
+    # print(ctx.needs_input_grad[0])
+    # if ctx.needs_input_grad[0]:
+    #     print("he llo")
+    # print(asdasdasd)
+
+    if ctx.needs_input_grad[1]:
+        grad_gamma = (grad_output * x_norm).sum(dim=0)
+
+    if ctx.needs_input_grad[2]:
+        grad_beta = grad_output.sum(dim=0)
+
+    if ctx.needs_input_grad[0]:
+        B = input.shape[0]
+        grad_input = (gamma * (1 / (variance)**0.5) / B) * (B * grad_output - x_norm * grad_gamma - grad_beta)
+
+
+
 
     # return gradients of the three tensor inputs and None for the constant eps
     return grad_input, grad_gamma, grad_beta, None
@@ -177,10 +224,14 @@ class CustomBatchNormManualModule(nn.Module):
     """
     super(CustomBatchNormManualModule, self).__init__()
 
+    self.gamma = nn.Parameter(torch.FloatTensor(torch.ones(n_neurons)), requires_grad=True)
+    self.beta = nn.Parameter(torch.FloatTensor(torch.zeros(n_neurons)), requires_grad=True)
+    self.n_neurons = n_neurons
+    self.eps = eps
+
     ########################
     # PUT YOUR CODE HERE  #
     #######################
-    raise NotImplementedError
     ########################
     # END OF YOUR CODE    #
     #######################
@@ -200,12 +251,15 @@ class CustomBatchNormManualModule(nn.Module):
       Call it via its .apply() method.
     """
 
+    #  I don't understand this, it feels very redundant?
     ########################
     # PUT YOUR CODE HERE  #
     #######################
-    raise NotImplementedError
+    my_bn_fct = CustomBatchNormManualFunction()
+    normalized = my_bn_fct.apply(input, self.gamma, self.beta, self.eps)
+
     ########################
     # END OF YOUR CODE    #
     #######################
 
-    return out
+    return normalized

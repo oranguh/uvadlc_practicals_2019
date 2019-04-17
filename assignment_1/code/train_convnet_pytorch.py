@@ -76,6 +76,11 @@ def train():
   ########################
   # PUT YOUR CODE HERE  #
   #######################
+  # print(FLAGS.batch_size)
+  # print(FLAGS.eval_freq)
+  # print(FLAGS.learning_rate)
+  # print(FLAGS.max_steps)
+
   cifar10 = cifar10_utils.get_cifar10()
 
   if torch.cuda.is_available():
@@ -87,15 +92,15 @@ def train():
   network = ConvNet(3, 10)
   network.to(device)
   criterion = nn.CrossEntropyLoss()
-  optimizer = optim.Adam(network.parameters(), lr=LEARNING_RATE_DEFAULT)
+  optimizer = optim.Adam(network.parameters(), lr=FLAGS.learning_rate)
 
   plotting_accuracy = []
   plotting_loss = []
   plotting_accuracy_test = []
   plotting_loss_test = []
 
-  for i in range(1, MAX_STEPS_DEFAULT-1):
-	  x, y = cifar10['train'].next_batch(BATCH_SIZE_DEFAULT)
+  for i in range(1, FLAGS.max_steps-1):
+	  x, y = cifar10['train'].next_batch(FLAGS.batch_size)
 	  x = torch.from_numpy(x)
 	  y = torch.from_numpy(y)
 	  x = x.to(device)
@@ -111,7 +116,7 @@ def train():
 	  loss.backward()
 	  optimizer.step()
 
-	  if (i % EVAL_FREQ_DEFAULT == 0):
+	  if (i % FLAGS.eval_freq == 0):
 		  x, y = cifar10['test'].next_batch(32)
 		  x = torch.from_numpy(x)
 		  y = torch.from_numpy(y)

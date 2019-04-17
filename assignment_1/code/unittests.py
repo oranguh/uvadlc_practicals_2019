@@ -65,7 +65,7 @@ class TestLosses(unittest.TestCase):
   def test_crossentropy_loss(self):
     np.random.seed(42)
     rel_error_max = 1e-5
-    
+
     for test_num in range(10):
       N = np.random.choice(range(1, 100))
       C = np.random.choice(range(1, 10))
@@ -77,8 +77,10 @@ class TestLosses(unittest.TestCase):
 
       loss = CrossEntropyModule().forward(X, y)
       grads = CrossEntropyModule().backward(X, y)
+      # print(loss.shape, grads.shape)
 
       f = lambda _: CrossEntropyModule().forward(X, y)
+      # print(f)
       grads_num = eval_numerical_gradient(f, X, verbose = False, h = 1e-5)
       self.assertLess(rel_error(grads_num, grads), rel_error_max)
 
@@ -96,7 +98,7 @@ class TestLayers(unittest.TestCase):
       dout = np.random.randn(N, C)
 
       layer = LinearModule(D, C)
-      
+
       out = layer.forward(x)
       dx = layer.backward(dout)
       dw = layer.grads['weight']
@@ -117,13 +119,13 @@ class TestLayers(unittest.TestCase):
       dout = np.random.randn(*x.shape)
 
       layer = ReLUModule()
-      
+
       out = layer.forward(x)
       dx = layer.backward(dout)
       dx_num = eval_numerical_gradient_array(lambda xx: layer.forward(xx), x, dout)
 
       self.assertLess(rel_error(dx, dx_num), rel_error_max)
-  
+
   def test_softmax_backward(self):
     np.random.seed(42)
     rel_error_max = 1e-5
@@ -135,7 +137,7 @@ class TestLayers(unittest.TestCase):
       dout = np.random.randn(*x.shape)
 
       layer = SoftMaxModule()
-      
+
       out = layer.forward(x)
       dx = layer.backward(dout)
       dx_num = eval_numerical_gradient_array(lambda xx: layer.forward(xx), x, dout)

@@ -101,7 +101,7 @@ class ConvNet(nn.Module):
     out = self.convoluter(x)
 
     # desired = (BATCHSIZE, 512)
-    out = out.view(-1, out.shape[1])
+    out = out.view(x.shape[0], -1)
 
     out = self.classifier(out)
 

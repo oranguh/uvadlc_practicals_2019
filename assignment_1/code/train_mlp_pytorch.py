@@ -94,17 +94,22 @@ def train():
   network = MLP(3072, dnn_hidden_units, 10)
   network.to(device)
   criterion = nn.CrossEntropyLoss()
-  optimizer = optim.Adam(network.parameters(), lr=LEARNING_RATE_DEFAULT)
+  optimizer = optim.Adam(network.parameters(), lr=FLAGS.learning_rate)
 
-  for i in range(1, MAX_STEPS_DEFAULT-1):
+  # print(FLAGS.batch_size)
+  # print(FLAGS.eval_freq)
+  # print(FLAGS.learning_rate)
+  # print(FLAGS.max_steps)
 
-      x, y = cifar10['train'].next_batch(BATCH_SIZE_DEFAULT)
+  for i in range(1, FLAGS.max_steps-1):
+
+      x, y = cifar10['train'].next_batch(FLAGS.batch_size)
       x = torch.from_numpy(x)
       y = torch.from_numpy(y)
       x = x.to(device)
       y = y.to(device)
 
-      x = x.view(BATCH_SIZE_DEFAULT, -1)
+      x = x.view(FLAGS.batch_size, -1)
 
 
       out = network.forward(x)
@@ -121,7 +126,7 @@ def train():
       # for f in network.parameters():
       #     f.data.sub_(f.grad.data * learning_rate)
 
-      if (i % EVAL_FREQ_DEFAULT == 0):
+      if (i % FLAGS.eval_freq == 0):
           x, y = cifar10['test'].next_batch(5000)
           x = torch.from_numpy(x)
           y = torch.from_numpy(y)
