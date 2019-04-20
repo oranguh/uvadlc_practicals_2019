@@ -117,20 +117,21 @@ def train():
 	  optimizer.step()
 
 	  if (i % FLAGS.eval_freq == 0):
-		  x, y = cifar10['test'].next_batch(32)
+		  x, y = cifar10['test'].next_batch(300)
 		  x = torch.from_numpy(x)
 		  y = torch.from_numpy(y)
 		  x = x.to(device)
 		  y = y.to(device)
 		  out = network.forward(x)
 		  loss_test = criterion(out, y.argmax(dim=1))
-		  print("TEST Batch: {} Loss {}".format(i, loss))
+		  print("TEST Batch: {} Loss {}".format(i, loss_test))
 		  acc_test = accuracy(out, y)
-		  print("TEST Accuracy: {}".format(acc))
+		  print("TEST Accuracy: {}".format(acc_test))
+
 		  plotting_accuracy_test.append(acc_test)
-		  plotting_loss_test.append(loss_test)
+		  plotting_loss_test.append(loss_test.item())
 		  plotting_accuracy.append(acc)
-		  plotting_loss.append(loss)
+		  plotting_loss.append(loss.item())
 
   plt.plot(plotting_accuracy, label='train accuracy')
   plt.plot(plotting_accuracy_test, label='test accuracy')

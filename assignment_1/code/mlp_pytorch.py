@@ -48,7 +48,7 @@ class MLP(nn.Module):
     if (len(n_total) > 1):
         self.layers["linear_0"] = nn.Linear(n_inputs, n_total[0])
         self.layers["relu_0"] = nn.ReLU(inplace=True)
-        self.layers["batchnorm_0"] = nn.BatchNorm1d(n_total[0])
+        # self.layers["batchnorm_0"] = nn.BatchNorm1d(n_total[0])
         self.layers["dropout_0"] = nn.Dropout(0.3)
 
 
@@ -56,7 +56,7 @@ class MLP(nn.Module):
             self.layers["linear_{}".format(i+1)] = nn.Linear(n_total[i], n_total[i+1])
             if (i < (len(n_total)-2)):
                 self.layers["relu_{}".format(i+1)] = nn.ReLU(inplace=True)
-                self.layers["batchnorm_{}".format(i+1)] = nn.BatchNorm1d(n_total[i+1])
+                # self.layers["batchnorm_{}".format(i+1)] = nn.BatchNorm1d(n_total[i+1])
                 self.layers["dropout_{}".format(i+1)] = nn.Dropout(0.3)
     else:
         self.layers["linear_0"] = [nn.Linear(n_inputs, n_total[0])]

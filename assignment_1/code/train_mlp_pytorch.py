@@ -16,6 +16,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import matplotlib.pyplot as plt
+import csv
 
 # Default constants
 DNN_HIDDEN_UNITS_DEFAULT = '100, 100, 100, 100'
@@ -94,12 +96,19 @@ def train():
   network = MLP(3072, dnn_hidden_units, 10)
   network.to(device)
   criterion = nn.CrossEntropyLoss()
-  optimizer = optim.Adam(network.parameters(), lr=FLAGS.learning_rate)
+  optimizer = optim.Adam(network.parameters(), lr=FLAGS.learning_rate) #, weight_decay=1/(200*9))
+  # optimizer = optim.RMSprop(network.parameters(), lr=FLAGS.learning_rate)
+  # optimizer = optim.SGD(network.parameters(), lr=FLAGS.learning_rate)
 
   # print(FLAGS.batch_size)
   # print(FLAGS.eval_freq)
   # print(FLAGS.learning_rate)
   # print(FLAGS.max_steps)
+
+  plotting_accuracy = []
+  plotting_loss = []
+  plotting_accuracy_test = []
+  plotting_loss_test = []
 
   for i in range(1, FLAGS.max_steps-1):
 
@@ -126,7 +135,36 @@ def train():
       # for f in network.parameters():
       #     f.data.sub_(f.grad.data * learning_rate)
 
-      if (i % FLAGS.eval_freq == 0):
+      # if (i % FLAGS.eval_freq == 0):
+      #     # print("TRAIN Batch: {} Loss {}".format(i, loss.item()))
+      #     acc = accuracy(out, y)
+      #     print("TRAIN Accuracy: {}".format(acc))
+      #     plotting_accuracy.append(acc)
+      #     plotting_loss.append(loss.item())
+      #
+      #     x, y = cifar10['test'].next_batch(5000)
+      #     x = torch.from_numpy(x)
+      #     y = torch.from_numpy(y)
+      #     x = x.to(device)
+      #     y = y.to(device)
+      #     x = x.view(5000, -1)
+      #     out = network.forward(x)
+      #     loss = criterion(out, y.argmax(dim=1))
+      #     # print("TEST Batch: {} Loss {}".format(i, loss))
+      #     acc = accuracy(out, y)
+      #     print("TEST Accuracy: {}".format(acc))
+      #     # print(loss.item())
+      #     # print(asdasd)
+      #     plotting_accuracy_test.append(acc)
+      #     plotting_loss_test.append(loss.item())
+
+      if (i == FLAGS.max_steps-FLAGS.eval_freq):
+          print("hellooo")
+          acc = accuracy(out, y)
+          print("TRAIN Accuracy: {}".format(acc))
+          train_accuracy = acc
+          train_loss = loss.item()
+
           x, y = cifar10['test'].next_batch(5000)
           x = torch.from_numpy(x)
           y = torch.from_numpy(y)
@@ -135,9 +173,31 @@ def train():
           x = x.view(5000, -1)
           out = network.forward(x)
           loss = criterion(out, y.argmax(dim=1))
-          print("TEST Batch: {} Loss {}".format(i, loss))
           acc = accuracy(out, y)
           print("TEST Accuracy: {}".format(acc))
+
+          test_accuracy = acc
+          test_loss = loss.item()
+
+          with open('MLP_results.csv', 'a') as output_file:
+              writer = csv.writer(output_file)
+              writer.writerow([FLAGS.dnn_hidden_units,
+                                FLAGS.learning_rate,
+                                train_accuracy,
+                                train_loss,
+                                test_accuracy,
+                                test_loss])
+
+
+  # plt.plot(plotting_accuracy, label='train accuracy')
+  # plt.plot(plotting_accuracy_test, label='test accuracy')
+  # plt.plot(plotting_loss, label='train loss')
+  # plt.plot(plotting_loss_test, label='test loss')
+  # plt.tight_layout()
+  # plt.legend()
+  # plt.show()
+
+
 
   ########################
   # END OF YOUR CODE    #

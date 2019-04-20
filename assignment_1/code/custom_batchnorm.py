@@ -190,7 +190,8 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
     if ctx.needs_input_grad[0]:
         B = input.shape[0]
         grad_input = (gamma * (1 / (variance)**0.5) / B) * (B * grad_output - x_norm * grad_gamma - grad_beta)
-
+        # ugh
+        # grad_input = (1 / (variance)**0.5) * (1. / B) * (B* (x_norm * gamma) - np.sum((x_norm * gamma), axis=0) - x_norm*np.sum(((x_norm * gamma))*x_norm, axis=0))
 
 
 

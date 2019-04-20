@@ -54,7 +54,7 @@ class MLP(object):
         self.layers = [LinearModule(n_inputs, n_total[0])]
     self.layers.append(SoftMaxModule())
 
-    # print(self.layers)
+    print(self.layers)
     # print(asdad)
     ########################
     # END OF YOUR CODE    #

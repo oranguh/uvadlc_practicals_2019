@@ -118,8 +118,9 @@ def train():
             module.params['weight'] -= (module.grads['weight']) * FLAGS.learning_rate
             module.params['bias'] -= (module.grads['bias']) * FLAGS.learning_rate
 
-    # if (i % EVAL_FREQ_DEFAULT == 0):
-    if (i == FLAGS.max_steps-1):
+
+    if (i % FLAGS.eval_freq == 0):
+    # if (i == FLAGS.max_steps-1):
         loss_train = criterion.forward(output, y)
         # print("Batch: {}; Average loss: {}".format(i, loss_train))
         acc_train = accuracy(output, y)
@@ -156,10 +157,10 @@ def train():
 
   # plt.plot(plotting_accuracy, label='train accuracy')
   # plt.plot(plotting_accuracy_test, label='test accuracy')
-  # plt.plot(plotting_loss, label='train loss')
-  # plt.plot(plotting_loss_test, label='test loss')
-  # plt.legend()
-  # plt.show()
+  plt.plot(plotting_loss, label='train loss')
+  plt.plot(plotting_loss_test, label='test loss')
+  plt.legend()
+  plt.show()
 
 
   ########################
