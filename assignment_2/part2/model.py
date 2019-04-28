@@ -18,7 +18,7 @@ from __future__ import division
 from __future__ import print_function
 
 import torch.nn as nn
-
+import torch
 
 class TextGenerationModel(nn.Module):
 
@@ -26,8 +26,32 @@ class TextGenerationModel(nn.Module):
                  lstm_num_hidden=256, lstm_num_layers=2, device='cuda:0'):
 
         super(TextGenerationModel, self).__init__()
-        # Initialization here...
 
-    def forward(self, x):
+        self.lstm_num_layers = lstm_num_layers
+        self.lstm_num_hidden = lstm_num_hidden
+        self.device = device
+        self.feature_size = vocabulary_size
+
+        self.lstm = nn.LSTM(input_size=self.feature_size,
+                            hidden_size=self.lstm_num_hidden,
+                            num_layers=self.lstm_num_layers)
+
+        # torch.nn.LSTM(*args, **kwargs)
+        self.linear = nn.Linear(in_features = self.lstm_num_hidden,
+                                out_features = self.feature_size)
+    def forward(self, x, hidden = None):
+        # sequence, batch, one-hot
+        # 30, 64, 87
         # Implementation here...
-        pass
+        # print(list(x.shape))
+        # hidden = x.new_zeros(list(x.shape) + [self.lstm_num_layers], device=self.device)
+        # print(hidden.shape)
+        # print(x.shape)
+
+        lstm_out, hidden = self.lstm(x , hidden)
+
+        # print(lstm_out.shape)
+        # make sure batch is first for linear
+        out = self.linear(lstm_out.transpose(0,1))
+        # print(out.shape)
+        return out, hidden

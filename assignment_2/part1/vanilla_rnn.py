@@ -27,8 +27,38 @@ class VanillaRNN(nn.Module):
 
     def __init__(self, seq_length, input_dim, num_hidden, num_classes, batch_size, device='cpu'):
         super(VanillaRNN, self).__init__()
-        # Initialization here ...
+
+        # h = hidden, x = input, p = outPut\
+
+        self.num_hidden = num_hidden
+        # torch.nn.init.normal_(tensor, mean=0, std=1)
+        #  I don't understand why seq_length is a variable and also device?
+
+        self.Whx = nn.Parameter(nn.init.normal_((torch.empty(input_dim, num_hidden, device=device)), std=0.001))
+        self.Whh = nn.Parameter(nn.init.normal_((torch.empty(num_hidden, num_hidden, device=device)), std=0.001))
+        self.Wph = nn.Parameter(nn.init.normal_((torch.empty(num_hidden, num_classes, device=device)), std=0.001))
+
+        self.bp = nn.Parameter(nn.init.constant_(torch.empty(num_classes, device=device), 0))
+        self.bh = nn.Parameter(nn.init.constant_(torch.empty(num_hidden, device=device), 0))
+
+        self.device = device
+        # self.myparameters = [self.Whx, self.Whh, self.Wph, self.bp, self.bh]
 
     def forward(self, x):
         # Implementation here ...
-        pass
+
+        # set the 1st hidden activation thing to 0s
+        hidden_activations = nn.init.constant_(torch.empty(x.shape[0], self.num_hidden), 0)
+        hidden_activations = hidden_activations.to(self.device)
+
+
+        for seq_number in range(x.shape[1]):
+
+            hidden_activations = torch.tanh(
+                                        x[:, seq_number].unsqueeze(1) @ self.Whx +
+                                        hidden_activations @ self.Whh +
+                                        self.bh)
+
+        # print(hidden_activations.shape, self.Wph.shape, self.bp.shape)
+        p = hidden_activations @ self.Wph + self.bp
+        return p
