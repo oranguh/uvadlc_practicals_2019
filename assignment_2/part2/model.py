@@ -36,22 +36,15 @@ class TextGenerationModel(nn.Module):
                             hidden_size=self.lstm_num_hidden,
                             num_layers=self.lstm_num_layers)
 
-        # torch.nn.LSTM(*args, **kwargs)
         self.linear = nn.Linear(in_features = self.lstm_num_hidden,
                                 out_features = self.feature_size)
     def forward(self, x, hidden = None):
         # sequence, batch, one-hot
         # 30, 64, 87
-        # Implementation here...
-        # print(list(x.shape))
-        # hidden = x.new_zeros(list(x.shape) + [self.lstm_num_layers], device=self.device)
-        # print(hidden.shape)
-        # print(x.shape)
 
         lstm_out, hidden = self.lstm(x , hidden)
 
-        # print(lstm_out.shape)
         # make sure batch is first for linear
         out = self.linear(lstm_out.transpose(0,1))
-        # print(out.shape)
+
         return out, hidden

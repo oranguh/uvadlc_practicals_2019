@@ -32,77 +32,89 @@ import torch.nn.functional as F
 from dataset import TextDataset
 from model import TextGenerationModel
 
+from tensorboardX import SummaryWriter
 ################################################################################
 
-def sleeping_beauty(dataset, config, model, greed=False, chars_to_generate=30, text="Sleeping beauty is", temperature=1):
+def sleeping_beauty(dataset, config, model, temperature=1):
     with torch.no_grad():
-        beauty = dataset.convert_from_string(text)
-        # beauty = torch.cuda.FloatTensor(beauty).unsqueeze(0)
-        beauty = torch.cuda.LongTensor(beauty).unsqueeze(0)
-        # beauty = torch.tensor(beauty, dtype=torch.long, device=device).unsqueeze(0)
-        one_hot = torch.cuda.FloatTensor(beauty.size(0),
+        for temp in [2, 1, 0.5, 0.1]:
+            beauty = dataset.convert_from_string(config.generate_from)
+            # beauty = torch.cuda.FloatTensor(beauty).unsqueeze(0)
+            # beauty = torch.cuda.LongTensor(beauty).unsqueeze(0)
+
+            beauty = torch.tensor(beauty, dtype=torch.long, device=config.device).unsqueeze(0)
+
+            # one_hot = torch.tensor((beauty.size(0), beauty.size(1), config.vocab_size),
+            #                         dtype=torch.long, device=config.device).zero_()
+
+            one_hot = torch.FloatTensor(beauty.size(0),
                                          beauty.size(1),
-                                         config.vocab_size).zero_()
-        one_hot.scatter_(2, beauty.unsqueeze(-1), 1)
+                                         config.vocab_size).zero_().to(config.device)
 
-        sentence = []
-        last_input = one_hot
-        hidden = None
+            one_hot.scatter_(2, beauty.unsqueeze(-1), 1)
 
-        for i in range(chars_to_generate + 1):
-            out, hidden = model.forward(last_input, hidden)
-            out = out[-1,:,:].unsqueeze(0)
-            # print(hidden[0].shape)
-            # print(hidden)
-            # print(bh)
-            hidden = (hidden[0][:,-1,:].unsqueeze(1).contiguous(), hidden[1][:,-1,:].unsqueeze(1).contiguous())
-            # print(hidden[0].shape)
-            # print(hidden)
+            sentence = []
+            # I need to make sure that the inputs are (seq, batch, one-hot)
+            # as that's what my model expects
+            last_input = one_hot.transpose(0,1)
+            hidden = None
+            # print(one_hot.shape)
+            # print(asdasd)
+            for i in range(config.chars_to_generate + 1):
+                out, hidden = model.forward(last_input, hidden)
 
-            if greed:
-                index = out.argmax().unsqueeze(-1)
-            else:
-                index = torch.multinomial(input=torch.softmax(out.squeeze(), dim=0)/temperature, num_samples=1)
+                # print(out.shape, hidden[0].shape)
+                # print(asdaasd)
 
-            # print(index, index.shape)
-            letter = torch.cuda.FloatTensor(1,1,config.vocab_size).zero_()
-            letter.scatter_(2, index.unsqueeze(-1).unsqueeze(-1), 1)
+                out = out[-1,-1,:].unsqueeze(0)
+                # hidden = (hidden[0][:,-1,:].unsqueeze(1).contiguous(), hidden[1][:,-1,:].unsqueeze(1).contiguous())
 
-            last_input = letter
+                if config.greed:
+                    index = out.argmax().unsqueeze(-1)
+                elif False:
+                    index = np.random.randint(0, config.vocab_size)
+                else:
+                    # I could also make the multinomial on the whole output,
+                    # not just the last... but that seems wrong
+                    #  k-sided die
+                    #  https://cs.stackexchange.com/questions/79241/what-is-temperature-in-lstm-and-neural-networks-generally
 
-            # print(sentence)
-            sentence.append(letter.view(-1).argmax().item())
-        # print(one_hot.shape)
-        print("{} ... {}".format(text, dataset.convert_to_string(sentence)))
+                    index = torch.multinomial(input=torch.softmax(out.squeeze()/temp, dim=0), num_samples=1)
 
-def random_int_sentence(dataset, config, model, greed=False, chars_to_generate=30, temperature=1):
+
+                letter = torch.FloatTensor(1,1,config.vocab_size).zero_().to(config.device)
+                letter.scatter_(2, index.unsqueeze(-1).unsqueeze(-1), 1)
+
+                last_input = letter
+                sentence.append(letter.view(-1).argmax().item())
+
+            print("TEMP:{} {} ... {}".format(temp, config.generate_from, dataset.convert_to_string(sentence)))
+
+def random_int_sentence(dataset, config, model, temperature=1):
     with torch.no_grad():
         # Generate some sentences by sampling from the model
         # why is generating a single random integer in pytorch so verbose
         rando = torch.randint(high=config.vocab_size, size=(1,1), dtype=torch.long, device=config.device)
-        # rando2 = torch.randint(high=dataset.vocab_size, size=(1,1), dtype=torch.long, device=config.device)
-        random_one_hot = torch.cuda.FloatTensor(1,1,config.vocab_size).zero_()
+        random_one_hot = torch.FloatTensor(1,1,config.vocab_size).zero_().to(config.device)
         random_one_hot.scatter_(2, rando.unsqueeze(-1), 1)
         sentence = []
         sentence.append(random_one_hot.view(-1).argmax().item())
         last_input = random_one_hot
         hidden = None
-        for i in range(chars_to_generate):
+        for i in range(config.chars_to_generate):
             out, hidden = model.forward(last_input, hidden)
             # The output is NOT a one-hot vector. Usually we simply take the
             # argmax (greedy) as the output but instead we sample randomly to
             # determine the letter
-            # print(index.shape, index)
-            if greed:
+
+            if config.greed:
                 index = out.argmax().unsqueeze(-1)
             else:
-                # index = torch.multinomial(input=out.squeeze(), num_samples=1)
-                # print(index, out.squeeze(), torch.softmax(out.squeeze(), dim=0))
+                # use multinomial as each character is its own category.
+                #
                 index = torch.multinomial(input=torch.softmax(out.squeeze(), dim=0)/temperature, num_samples=1)
-                # print(asdasd)
-            # print(index.shape, index, out.shape)
-            # print(index.shape, index.unsqueeze(-1).unsqueeze(-1).shape, rando.unsqueeze(-1).shape)
-            letter = torch.cuda.FloatTensor(1,1,config.vocab_size).zero_()
+
+            letter = torch.FloatTensor(1,1,config.vocab_size).zero_().to(config.device)
             letter.scatter_(2, index.unsqueeze(-1).unsqueeze(-1), 1)
 
             last_input = letter
@@ -138,7 +150,12 @@ def train(config):
     criterion = nn.CrossEntropyLoss()
     # optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
     optimizer = optim.RMSprop(model.parameters(), lr=config.learning_rate)
-    for epoch in range(100):
+
+    writer = SummaryWriter(comment=config.txt_file)
+    writer_iteration = 0
+
+    for epoch in range(50):
+        print("\n\n\n EPOCH: {}".format(epoch))
         for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
             # Only for time measurement of step through network
@@ -155,35 +172,23 @@ def train(config):
             # print(batch_inputs.shape)
             # batch_inputs = F.one_hot(batch_inputs, vocab_size)
 
-            one_hot = torch.cuda.FloatTensor(batch_inputs.size(0),
+            one_hot = torch.FloatTensor(batch_inputs.size(0),
                                              batch_inputs.size(1),
-                                             vocab_size).zero_()
+                                             vocab_size).zero_().to(config.device)
             one_hot.scatter_(2, batch_inputs.unsqueeze(-1), 1)
 
             # make batch first dim
             batch_targets = torch.stack(batch_targets, dim = 1).to(device)
 
-            # one_hot_targets = torch.cuda.FloatTensor(batch_inputs.size(0),
-            #                                  batch_inputs.size(1),
-            #                                  vocab_size).zero_()
-            # one_hot_targets.scatter_(2, batch_targets.unsqueeze(-1), 1)
-            # print(one_hot.shape)
-            # print(one_hot[0,0,:])
-            # print(batch_targets.shape, batch_inputs.shape)
-            # print(batch_inputs, batch_targets)
             out, _ = model.forward(one_hot)
 
-            # print(out.argmax(2).shape, batch_targets.shape)
-            # print(asdasd)
             # The data is (sequence,batch,one-hot) (30, 64, 87)
             # but criterion gets angry, you can keep the batch targets as index
             # but the input must be the shape (sequence, one-hot, batch)?
 
-            # loss = criterion(out.argmax(2), batch_targets)
-            # print(out.shape, batch_targets.shape)
-            # print(out.transpose(2,1).shape)
-            # print(asdasd)
             # all these errors yelling at me
+            # print(out.transpose(2,1).shape)
+            # print(asdasda)
             loss = criterion(out.transpose(2,1), batch_targets)
             optimizer.zero_grad()
             loss.backward()
@@ -191,17 +196,18 @@ def train(config):
             # Just for time measurement
             t2 = time.time()
             examples_per_second = config.batch_size/float(t2-t1)
-
             if step % config.print_every == 0:
 
-                # print(out.shape, batch_targets.shape)
                 compare = (out.argmax(2) == batch_targets)
-                # print(compare.shape)
 
                 summed = compare.sum().item()
-                # print(compare.numel())
-                # print(asdasd)
+
                 accuracy = summed/compare.numel()
+
+                writer.add_scalar('loss', loss, writer_iteration)
+                writer.add_scalar('accuracy', accuracy, writer_iteration)
+                writer_iteration +=1
+
                 print("[{}] Train Step {:04d}/{:d}, Batch Size = {}, Examples/Sec = {:.2f}, "
                       "Accuracy = {:.2f}, Loss = {:.3f}".format(
                         datetime.now().strftime("%Y-%m-%d %H:%M"), int(step),
@@ -219,6 +225,7 @@ def train(config):
                 # https://github.com/pytorch/pytorch/pull/9655
                 break
 
+    torch.save(model, config.txt_file.strip('.txt') + ".pt")
     print('Done training.')
 
 
@@ -230,11 +237,22 @@ if __name__ == "__main__":
     # Parse training configuration
     parser = argparse.ArgumentParser()
 
+    # text_generation parameters greed chars_to_generate text
+    parser.add_argument('--generate_from', type=str, default="Sleeping beauty is", help="sample text to generate text: Sleeping beauty")
+    parser.add_argument('--chars_to_generate', type=int, default=50, help="Amount of chars to generate")
+
+    parser.add_argument('--greed', dest='greed', action='store_true')
+    parser.add_argument('--no-greed', dest='greed', action='store_false')
+    parser.set_defaults(feature=False)
+
+
     # Model params
     parser.add_argument('--txt_file', type=str, required=True, help="Path to a .txt file to train on")
     parser.add_argument('--seq_length', type=int, default=30, help='Length of an input sequence')
     parser.add_argument('--lstm_num_hidden', type=int, default=128, help='Number of hidden units in the LSTM')
     parser.add_argument('--lstm_num_layers', type=int, default=2, help='Number of LSTM layers in the model')
+    parser.add_argument('--model', type=str, default="", help='Load previously made model')
+
 
     # Training params
     parser.add_argument('--batch_size', type=int, default=64, help='Number of examples to process in a batch')
