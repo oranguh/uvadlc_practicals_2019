@@ -42,9 +42,12 @@ class TextGenerationModel(nn.Module):
         # sequence, batch, one-hot
         # 30, 64, 87
 
+        # print(x.shape)
+        # print(asdasd)
         lstm_out, hidden = self.lstm(x , hidden)
-
+        # print(lstm_out.shape)
         # make sure batch is first for linear
         out = self.linear(lstm_out.transpose(0,1))
-
+        # print(out.shape)
+        # print(asdasd)
         return out, hidden

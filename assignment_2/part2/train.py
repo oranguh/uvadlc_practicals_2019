@@ -35,18 +35,11 @@ from model import TextGenerationModel
 from tensorboardX import SummaryWriter
 ################################################################################
 
-def sleeping_beauty(dataset, config, model, temperature=1):
+def sleeping_beauty(dataset, config, model):
     with torch.no_grad():
         for temp in [2, 1, 0.5, 0.1]:
             beauty = dataset.convert_from_string(config.generate_from)
-            # beauty = torch.cuda.FloatTensor(beauty).unsqueeze(0)
-            # beauty = torch.cuda.LongTensor(beauty).unsqueeze(0)
-
             beauty = torch.tensor(beauty, dtype=torch.long, device=config.device).unsqueeze(0)
-
-            # one_hot = torch.tensor((beauty.size(0), beauty.size(1), config.vocab_size),
-            #                         dtype=torch.long, device=config.device).zero_()
-
             one_hot = torch.FloatTensor(beauty.size(0),
                                          beauty.size(1),
                                          config.vocab_size).zero_().to(config.device)
@@ -58,17 +51,9 @@ def sleeping_beauty(dataset, config, model, temperature=1):
             # as that's what my model expects
             last_input = one_hot.transpose(0,1)
             hidden = None
-            # print(one_hot.shape)
-            # print(asdasd)
             for i in range(config.chars_to_generate + 1):
                 out, hidden = model.forward(last_input, hidden)
-
-                # print(out.shape, hidden[0].shape)
-                # print(asdaasd)
-
                 out = out[-1,-1,:].unsqueeze(0)
-                # hidden = (hidden[0][:,-1,:].unsqueeze(1).contiguous(), hidden[1][:,-1,:].unsqueeze(1).contiguous())
-
                 if config.greed:
                     index = out.argmax().unsqueeze(-1)
                 elif False:
@@ -78,51 +63,51 @@ def sleeping_beauty(dataset, config, model, temperature=1):
                     # not just the last... but that seems wrong
                     #  k-sided die
                     #  https://cs.stackexchange.com/questions/79241/what-is-temperature-in-lstm-and-neural-networks-generally
-
                     index = torch.multinomial(input=torch.softmax(out.squeeze()/temp, dim=0), num_samples=1)
-
 
                 letter = torch.FloatTensor(1,1,config.vocab_size).zero_().to(config.device)
                 letter.scatter_(2, index.unsqueeze(-1).unsqueeze(-1), 1)
-
                 last_input = letter
                 sentence.append(letter.view(-1).argmax().item())
 
             print("TEMP:{} {} ... {}".format(temp, config.generate_from, dataset.convert_to_string(sentence)))
 
-def random_int_sentence(dataset, config, model, temperature=1):
+def random_int_sentence(dataset, config, model):
     with torch.no_grad():
-        # Generate some sentences by sampling from the model
-        # why is generating a single random integer in pytorch so verbose
         rando = torch.randint(high=config.vocab_size, size=(1,1), dtype=torch.long, device=config.device)
         random_one_hot = torch.FloatTensor(1,1,config.vocab_size).zero_().to(config.device)
         random_one_hot.scatter_(2, rando.unsqueeze(-1), 1)
-        sentence = []
-        sentence.append(random_one_hot.view(-1).argmax().item())
-        last_input = random_one_hot
-        hidden = None
-        for i in range(config.chars_to_generate):
-            out, hidden = model.forward(last_input, hidden)
-            # The output is NOT a one-hot vector. Usually we simply take the
-            # argmax (greedy) as the output but instead we sample randomly to
-            # determine the letter
+        
+        for temp in [2, 1, 0.5, 0.1]:
+            # Generate some sentences by sampling from the model
+            # why is generating a single random integer in pytorch so verbose
+            sentence = []
+            sentence.append(random_one_hot.view(-1).argmax().item())
+            last_input = random_one_hot
+            hidden = None
+            for i in range(config.chars_to_generate):
+                out, hidden = model.forward(last_input, hidden)
+                # The output is NOT a one-hot vector. Usually we simply take the
+                # argmax (greedy) as the output but instead we sample randomly to
+                # determine the letter
 
-            if config.greed:
-                index = out.argmax().unsqueeze(-1)
-            else:
-                # use multinomial as each character is its own category.
-                #
-                index = torch.multinomial(input=torch.softmax(out.squeeze(), dim=0)/temperature, num_samples=1)
+                if config.greed:
+                    index = out.argmax().unsqueeze(-1)
+                else:
+                    # use multinomial as each character is its own category.
+                    #
+                    index = torch.multinomial(input=torch.softmax(out.squeeze(), dim=0)/temp, num_samples=1)
 
-            letter = torch.FloatTensor(1,1,config.vocab_size).zero_().to(config.device)
-            letter.scatter_(2, index.unsqueeze(-1).unsqueeze(-1), 1)
+                letter = torch.FloatTensor(1,1,config.vocab_size).zero_().to(config.device)
+                letter.scatter_(2, index.unsqueeze(-1).unsqueeze(-1), 1)
 
-            last_input = letter
+                last_input = letter
 
-            # print(sentence)
-            sentence.append(letter.view(-1).argmax().item())
+                # print(sentence)
+                sentence.append(letter.view(-1).argmax().item())
 
-    print(dataset.convert_to_string(sentence))
+            # print(dataset.convert_to_string(sentence))
+            print("TEMP:{}: {}".format(temp, dataset.convert_to_string(sentence)))
 
 def train(config):
 
@@ -148,6 +133,9 @@ def train(config):
 
     # Setup the loss and optimizer
     criterion = nn.CrossEntropyLoss()
+    # criterion = nn.NLLLoss()
+
+
     # optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
     optimizer = optim.RMSprop(model.parameters(), lr=config.learning_rate)
 
@@ -187,8 +175,8 @@ def train(config):
             # but the input must be the shape (sequence, one-hot, batch)?
 
             # all these errors yelling at me
-            # print(out.transpose(2,1).shape)
-            # print(asdasda)
+            # print(out.transpose(2,1).shape, batch_targets.shape)
+            # print(asdasd)
             loss = criterion(out.transpose(2,1), batch_targets)
             optimizer.zero_grad()
             loss.backward()
@@ -199,9 +187,7 @@ def train(config):
             if step % config.print_every == 0:
 
                 compare = (out.argmax(2) == batch_targets)
-
                 summed = compare.sum().item()
-
                 accuracy = summed/compare.numel()
 
                 writer.add_scalar('loss', loss, writer_iteration)
@@ -216,8 +202,8 @@ def train(config):
                 ))
 
             if step % config.sample_every == 0:
-                sleeping_beauty(dataset, config, model)
-                # random_int_sentence(dataset, config, model)
+                # sleeping_beauty(dataset, config, model)
+                random_int_sentence(dataset, config, model)
 
 
             if step == config.train_steps:
