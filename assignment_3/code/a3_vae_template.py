@@ -85,9 +85,9 @@ class VAE(nn.Module):
         # print(mean)
         std = torch.exp(variance_log*0.5)
         zeros = torch.zeros(mean.shape).to(self.device)
-        noise = torch.normal(zeros, std).to(self.device)
-        # noise = torch.randn_like(std)
-        z = mean + noise.mul(std)
+        distribution = torch.distributions.normal.Normal(zeros, std, validate_args=None)
+
+        z = mean + distribution.sample() * std
 
         """
             z should be the mean (MLE) plus some noise (variation)
@@ -96,11 +96,6 @@ class VAE(nn.Module):
         output = self.decoder.forward(z)
         # print(output.shape)
         # print(asdasd)
-        if True:
-            to_show = output[:100].view(-1,1,28,28)
-            save_image(to_show,
-                       'images/VAE_{}.png'.format(0),
-                       nrow=10, normalize=True)
         # plt.matshow(input[0].view(28,28).cpu().detach().numpy())
         # plt.show()
         # print(asdasd)
@@ -120,7 +115,8 @@ class VAE(nn.Module):
         # print("recon: {}, kl: {}".format(recon_loss.item(), kl.item()))
         # the KL loss is always about 20% of the recon_loss.... I wonder if it should be higher?
         # print(kl.item())
-        average_negative_elbo = kl*5 + recon_loss
+        beta = 1
+        average_negative_elbo = beta*kl/input.shape[0] + recon_loss/input.shape[0]
 
         return average_negative_elbo
 
@@ -134,20 +130,49 @@ class VAE(nn.Module):
 
         with torch.no_grad():
 
-            # We repeat the mean vector for as many samples as we want
-            # The shape will be (n_samples, length_of_latent)
-            to_bernoullio = self.mean.repeat(n_samples, 1)
-            # We then sample using those means, note means must be between
-            # 0 and 1 for this to work. Returns binary values.
-            z = torch.bernoulli(to_bernoullio)
+            zeros = torch.zeros(n_samples, self.z_dim)
+            ones = torch.ones(n_samples, self.z_dim)
+            distribution = torch.distributions.normal.Normal(zeros, ones, validate_args=None)
+            sampled_z = distribution.sample().cuda()
 
-            # push through these values through decoder
-            sampled_ims = self.decoder.forward(z)
-            # unflatten the vector into an image (black and white)
+            sampled_ims = self.decoder.forward(sampled_z)
+
+            # bernoli = torch.distributions.bernoulli.Bernoulli(sampled_ims)
+            # sampled_ims = bernoli.sample()
             sampled_ims = sampled_ims.view(-1, 1, 28, 28)
+            im_means = sampled_ims.mean(dim=0)
 
         return sampled_ims, im_means
 
+    def plot_2d_manifold(self, grid_dims=10):
+        assert self.z_dim == 2
+        meshrgrid_array = [torch.linspace(-2,2,grid_dims) for x in range(2)]
+        with torch.no_grad():
+            xv, yv = torch.meshgrid(meshrgrid_array)
+            xv = xv.reshape(-1)
+            yv = yv.reshape(-1)
+            mesh_z = torch.stack([xv,yv]).t().cuda()
+
+            sampled_ims = self.decoder.forward(mesh_z)
+
+            # bernoli = torch.distributions.bernoulli.Bernoulli(sampled_ims)
+            # sampled_ims = bernoli.sample()
+            sampled_ims = sampled_ims.view(-1, 1, 28, 28)
+            return sampled_ims
+
+    def plot_beta_VAE_manifold(self, samples_amount=10):
+
+        vae_fold = torch.zeros(self.z_dim, samples_amount, self.z_dim)
+
+        for dimension in range(self.z_dim):
+            vae_fold[dimension,:, dimension] = torch.linspace(-2,2,samples_amount)
+
+        vae_fold = vae_fold.view(-1,self.z_dim).cuda()
+        sampled_ims = self.decoder.forward(vae_fold)
+        # bernoli = torch.distributions.bernoulli.Bernoulli(sampled_ims)
+        # sampled_ims = bernoli.sample()
+        sampled_ims = sampled_ims.view(-1, 1, 28, 28)
+        return sampled_ims
 
 def epoch_iter(model, data, optimizer, device):
     """
@@ -218,16 +243,34 @@ def main():
         val_curve.append(val_elbo)
         print(f"[Epoch {epoch}] train elbo: {train_elbo} val_elbo: {val_elbo}")
 
-        # --------------------------------------------------------------------
-        #  Add functionality to plot samples from model during training.
-        #  You can use the make_grid functioanlity that is already imported.
-        # --------------------------------------------------------------------
+        if True:
+            path = 'images/ELBO_VAE.png'
+            plt.plot(train_curve, label='training ELBO')
+            plt.plot(val_curve, label='validation ELBO')
+            plt.title("ELBO VAE")
+            plt.xlabel("Epochs")
+            plt.ylabel("ELBO")
+            plt.legend()
+            plt.savefig(path)
+            plt.close('all')
 
-    # --------------------------------------------------------------------
-    #  Add functionality to plot plot the learned data manifold after
-    #  if required (i.e., if zdim == 2). You can use the make_grid
-    #  functionality that is already imported.
-    # --------------------------------------------------------------------
+        if True:
+            sampled_ims, im_means = model.sample(100)
+            # print(sampled_ims.shape, im_means.shape)
+            # print(asdad)
+            save_image(sampled_ims,
+                       'images/VAE_epoch_{}.png'.format(epoch),
+                       nrow=10, normalize=True)
+        if True:
+            sampled_ims = model.plot_2d_manifold()
+            save_image(sampled_ims,
+                      'images/VAE_manifold_epoch_{}.png'.format(epoch),
+                      nrow=10, normalize=True)
+        if False:
+            sampled_ims = model.plot_beta_VAE_manifold()
+            save_image(sampled_ims,
+                      'images/BETA_VAE_manifold_epoch_{}.png'.format(epoch),
+                      nrow=10, normalize=True)
 
     save_elbo_plot(train_curve, val_curve, 'elbo.pdf')
 

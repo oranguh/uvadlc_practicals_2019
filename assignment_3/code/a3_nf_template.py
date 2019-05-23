@@ -8,25 +8,30 @@ import numpy as np
 from datasets.mnist import mnist
 import os
 from torchvision.utils import make_grid
-
+from torchvision.utils import save_image
+from scipy.special import logit, expit
 
 def log_prior(x):
     """
     Compute the elementwise log probability of a standard Gaussian, i.e.
     N(x | mu=0, sigma=1).
     """
-    raise NotImplementedError
-    return logp
+    # dist = torch.distributions.normal.Normal(0, 1, validate_args=None)
+    # logp = dist.log_prob(x)
+    prior_logged = -0.5 * (x ** 2 + np.log(2 * np.pi))
+    return prior_logged
 
 
 def sample_prior(size):
     """
     Sample from a standard Gaussian.
     """
-    raise NotImplementedError
 
-    if torch.cuda.is_available():
-        sample = sample.cuda()
+    sample = np.random.normal(loc=0.0, scale=1.0, size=(size))
+    sample = torch.from_numpy(sample).to(dtype=torch.float, device='cuda')
+
+    # if torch.cuda.is_available():
+    #     sample = sample.cuda()
 
     return sample
 
@@ -56,8 +61,14 @@ class Coupling(torch.nn.Module):
         # scale variables.
         # Suggestion: Linear ReLU Linear ReLU Linear.
         self.nn = torch.nn.Sequential(
-            None
+            nn.Linear(c_in, n_hidden),
+            nn.ReLU(inplace=True),
+            nn.Linear(n_hidden, n_hidden),
+            nn.ReLU(inplace=True),
+            nn.Linear(n_hidden, n_hidden)
             )
+        self.translation = nn.Linear(n_hidden, c_in)
+        self.scale = nn.Linear(n_hidden, c_in)
 
         # The nn should be initialized such that the weights of the last layer
         # is zero, so that its initial transform is identity.
@@ -74,13 +85,37 @@ class Coupling(torch.nn.Module):
         # log_scale = tanh(h), where h is the scale-output
         # from the NN.
 
-        if not reverse:
-            raise NotImplementedError
+        # the mask is used to make the determinant calculation easier. math magic
+        leftover_mask = z * self.mask
+
+        # you use the masked entry and fit it to the rest of your data
+        temp = self.nn(leftover_mask)
+        translation = self.translation(temp)
+        scale = torch.tanh(self.scale(temp))
+
+        """
+            As computing the Jacobian determinant of the transformation
+            is crucial to effectively train using this principle, this work exploits the simple observation that the
+            determinant of a triangular matrix can be efficiently computed as the product of its diagonal terms.
+
+            Since we still want to use all of the information we need to only calculate the ldj
+            for the diagonal. But we want to push the information forward. Then the next coupling
+            layer will do the other diagonal.
+
+            literally copied the real NVP formula
+        """
+
+        if reverse:
+            z = leftover_mask + (1 - self.mask) * ((z - translation) * scale.mul(-1).exp())
+
         else:
-            raise NotImplementedError
+            # is it correct to see the translation as a kind of bias term?
+            z = leftover_mask + (1 - self.mask) * (z * scale.exp() + translation)
+            # since we are taking the log discrimants, we can simply keep summing the ldj
+            # determinant of a triangular matrix can be efficiently computed as the product of its diagonal terms
+            ldj += torch.sum((1 - self.mask) * scale, dim=1)
 
         return z, ldj
-
 
 class Flow(nn.Module):
     def __init__(self, shape, n_flows=4):
@@ -92,6 +127,8 @@ class Flow(nn.Module):
         self.layers = torch.nn.ModuleList()
 
         for i in range(n_flows):
+            # you make sure you do it with the reverse mask to approximate it
+            # better? Or is it a good 1 on 1?
             self.layers.append(Coupling(c_in=channels, mask=mask))
             self.layers.append(Coupling(c_in=channels, mask=1-mask))
 
@@ -114,6 +151,7 @@ class Model(nn.Module):
         self.flow = Flow(shape)
 
     def dequantize(self, z):
+        # add noise to your data to make sure your distribution is not degernate
         return z + torch.rand_like(z)
 
     def logit_normalize(self, z, logdet, reverse=False):
@@ -143,33 +181,49 @@ class Model(nn.Module):
 
         return z, logdet
 
-    def forward(self, input):
+    def forward(self, z):
         """
-        Given input, encode the input to z space. Also keep track of ldj.
+        Given input, encode the input to z space. Also keep track of sum of log Jacobian determinant.
         """
-        z = input
-        ldj = torch.zeros(z.size(0), device=z.device)
+        ldj = torch.zeros(z.size(0), device='cuda')
 
         z = self.dequantize(z)
-        z, ldj = self.logit_normalize(z, ldj)
 
-        z, ldj = self.flow(z, ldj)
+        z, ldj = self.logit_normalize(z, ldj)
+        z, ldj = self.flow.forward(z, ldj)
+
 
         # Compute log_pz and log_px per example
+        # You first start with a simple normal distribution. You then
+        # can make it complex by adding the sums of the determinants
+        # log Jacobian determinant. Why do we sum the log instead of just multiply?
+        # maybe numerical stability? So that you can sum instead?
+        # from real NVP equation 3
 
-        raise NotImplementedError
+        prior_ll = log_prior(z)
+        # print(log_pz.shape, ldj.shape)
+        prior_ll = prior_ll.view(z.size(0), -1).sum(-1)# - np.log(256) * np.prod(z.size()[1:])
+
+        log_px = prior_ll + ldj
+        log_px = -log_px.mean()
+
+        # log_px = log_pz.sum(dim=1) + ldj
+        # log_prior_x = log_prior_z + sum(determinants)
 
         return log_px
 
     def sample(self, n_samples):
         """
-        Sample n_samples from the model. Sample from prior and create ldj.
+        Sample n_samples from the model. Sample from prior and create
+        log Jacobian determinant.
         Then invert the flow and invert the logit_normalize.
         """
         z = sample_prior((n_samples,) + self.flow.z_shape)
         ldj = torch.zeros(z.size(0), device=z.device)
 
-        raise NotImplementedError
+        z, ldj = self.flow.forward(z, ldj, reverse=True)
+        z, ldj = self.logit_normalize(z, ldj, reverse=True)
+        # we don't really care about ldj now do we.
 
         return z
 
@@ -182,10 +236,26 @@ def epoch_iter(model, data, optimizer):
     Returns the average bpd ("bits per dimension" which is the negative
     log_2 likelihood per dimension) averaged over the complete epoch.
     """
+    bpds = []
+    for batch in data:
+        training, validation = batch
 
-    avg_bpd = None
+        loss = model.forward(training.cuda())
+        # loss = loss.mul(-1).mean()
+        # print(loss)
 
-    return avg_bpd
+        if model.training:
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(),max_norm=5.0)
+            optimizer.step()
+
+        bpds.append(loss.item())
+
+    # avg_bpd = logit(0.05 + (1-0.05) * (np.mean(bpds) / 256))
+    avg_bpd =  (np.mean(bpds) / 784) * np.log(2)
+
+    return avg_bpd.item()
 
 
 def run_epoch(model, data, optimizer):
@@ -210,8 +280,10 @@ def save_bpd_plot(train_curve, val_curve, filename):
     plt.legend()
     plt.xlabel('epochs')
     plt.ylabel('bpd')
+    plt.ylim(0,5)
     plt.tight_layout()
     plt.savefig(filename)
+    plt.close("all")
 
 
 def main():
@@ -235,13 +307,14 @@ def main():
         print("[Epoch {epoch}] train bpd: {train_bpd} val_bpd: {val_bpd}".format(
             epoch=epoch, train_bpd=train_bpd, val_bpd=val_bpd))
 
-        # --------------------------------------------------------------------
-        #  Add functionality to plot samples from model during training.
-        #  You can use the make_grid functionality that is already imported.
-        #  Save grid to images_nfs/
-        # --------------------------------------------------------------------
+        generated_imgs = model.sample(100)
+        to_show = generated_imgs.view(-1,1,28,28)
+        save_image(to_show,
+                   'images_nfs/{}.png'.format(epoch),
+                   nrow=10, normalize=True)
 
-    save_bpd_plot(train_curve, val_curve, 'nfs_bpd.pdf')
+
+        save_bpd_plot(train_curve, val_curve, 'nfs_bpd.pdf')
 
 
 if __name__ == "__main__":

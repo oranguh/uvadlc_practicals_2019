@@ -36,7 +36,6 @@ class Generator(nn.Module):
 
         self.layers["linear_4"] = nn.Linear(1024, 784)
         self.layers["tanh_4"] = nn.Tanh()
-        # self.layers["tsig_4"] = nn.Sigmoid()
         #   Output non-linearity ???
 
         self.classifier = nn.Sequential(self.layers)
@@ -83,7 +82,7 @@ def train(dataloader, discriminator, generator, optimizer_G, optimizer_D, args):
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
-    else
+    else:
         device = torch.device("cpu")
 
     z_to_follow = np.random.normal(loc=0.0, scale=1.0, size=(100, args.latent_dim))
@@ -149,7 +148,7 @@ def train(dataloader, discriminator, generator, optimizer_G, optimizer_D, args):
                 with torch.no_grad():
 
                     if True:
-                        path = 'images/Losses.png'
+                        path = 'images_gan/GAN_losses.png'
                         plt.plot(generator_losses_mean, label='generator loss')
                         plt.plot(discriminator_losses_mean, label='discriminator loss')
                         plt.title("Training losses GAN")
@@ -163,9 +162,18 @@ def train(dataloader, discriminator, generator, optimizer_G, optimizer_D, args):
                         generated_imgs = generator.forward(z_to_follow)
                         to_show = generated_imgs.view(-1,1,28,28)
                         save_image(to_show,
-                                   'images/{}.png'.format(batches_done),
+                                   'images_gan/{}.png'.format(batches_done),
                                    nrow=10, normalize=True)
-
+                    if True:
+                        start_z = np.random.normal(loc=0.0, scale=1.0, size=(args.latent_dim))
+                        end_z = np.random.normal(loc=0.0, scale=1.0, size=(args.latent_dim))
+                        matr = np.linspace((start_z),(end_z),10)
+                        matr = torch.from_numpy(matr).to(dtype=torch.float, device=device)
+                        generated_imgs = generator.forward(matr)
+                        to_show = generated_imgs.view(-1,1,28,28)
+                        save_image(to_show,
+                                   'images_gan/interpolation_{}.png'.format(batches_done),
+                                   nrow=10, normalize=True)
 
                     print("epoch: {}".format(epoch))
 
